@@ -1,0 +1,70 @@
+name: Test
+on:
+  push:
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: write
+  deployments: write
+jobs:
+  test_go:
+    name: Run and Test GO
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./go
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - name: Install dependencies
+        run: go get .
+      - name: Build
+        run: go build -o main -v main.go
+      - name: Test with the Go CLI
+        run: go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Benchmark Go
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          go test ./... --json -bench . 
+
+  build_go:
+    name: Crossbuild GO binaries on ubuntu
+    needs: test_go
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        os: [linux, windows, darwin]
+        arch: [amd64]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - name: Install dependencies
+        run: go get .
+      - name: Cross-build
+        run: |
+          set -e
+          mkdir -p dist
+          ext=""
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            ext=".exe"
+          fi
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -o dist/go_gcode-${{ matrix.os }}${ext} -v ./cmd/go_gcode
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: go_gcode-${{ matrix.os }}-binaries
+          path: dist/go_gcode-${{ matrix.os }}*
