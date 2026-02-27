@@ -56,7 +56,7 @@ jobs:
           fi
           GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} CGO_ENABLED=0 go build -o dist/go_gcode-${{ matrix.os }}${ext} -v ./cmd/...
       - name: Archive production artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: go_gcode-${{ matrix.os }}-binaries
           path: dist/go_gcode-${{ matrix.os }}*
